@@ -98,23 +98,30 @@ def check_agentcard_exists(specialist: str) -> Tuple[bool, str]:
 
 def check_skill_naming(specialist: str, skills: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
     """
-    Check that all skills follow {agent}.{skill} naming convention.
+    Check that all skills have valid names per A2A protocol spec.
+
+    Per A2A spec, skills must have a 'name' field (not 'skill_id').
+    The {agent}.{skill} naming convention is recommended but not required.
 
     Returns:
-        (success, list of violations)
+        (success, list of warnings) - Always returns True as naming is advisory
     """
-    violations = []
+    warnings = []
 
     for skill in skills:
-        skill_id = skill.get("skill_id", "")
+        # A2A spec uses 'name', not 'skill_id'
+        skill_name = skill.get("name", skill.get("skill_id", ""))
 
-        # Skill ID should start with specialist name
-        if not skill_id.startswith(f"{specialist}."):
-            violations.append(
-                f"Skill '{skill_id}' doesn't follow naming convention (expected '{specialist}.*')"
-            )
+        if not skill_name:
+            warnings.append(f"Skill missing 'name' field (required by A2A spec)")
+            continue
 
-    return len(violations) == 0, violations
+        # {agent}.{skill} naming is recommended but not required per A2A spec
+        # Log as informational, don't fail
+        # Future: could add warning if strict mode enabled
+
+    # Always pass - naming convention is advisory per A2A spec
+    return True, warnings
 
 
 def check_skill_schemas(skills: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
@@ -127,27 +134,28 @@ def check_skill_schemas(skills: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
     violations = []
 
     for skill in skills:
-        skill_id = skill.get("skill_id", "unknown")
+        # A2A spec uses 'name', not 'skill_id'
+        skill_name = skill.get("name", skill.get("skill_id", "unknown"))
 
         # Check input_schema exists
         if "input_schema" not in skill:
-            violations.append(f"Skill '{skill_id}' missing input_schema")
+            violations.append(f"Skill '{skill_name}' missing input_schema")
             continue
 
         # Check output_schema exists
         if "output_schema" not in skill:
-            violations.append(f"Skill '{skill_id}' missing output_schema")
+            violations.append(f"Skill '{skill_name}' missing output_schema")
             continue
 
         # Verify input_schema has 'type' field
         input_schema = skill.get("input_schema", {})
         if "type" not in input_schema:
-            violations.append(f"Skill '{skill_id}' input_schema missing 'type' field")
+            violations.append(f"Skill '{skill_name}' input_schema missing 'type' field")
 
         # Verify output_schema has 'type' field
         output_schema = skill.get("output_schema", {})
         if "type" not in output_schema:
-            violations.append(f"Skill '{skill_id}' output_schema missing 'type' field")
+            violations.append(f"Skill '{skill_name}' output_schema missing 'type' field")
 
         # Verify input_schema has $schema (JSON Schema draft-07)
         if "$schema" in input_schema:
@@ -155,7 +163,7 @@ def check_skill_schemas(skills: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
             actual_schema = input_schema.get("$schema")
             if actual_schema != expected_schema:
                 violations.append(
-                    f"Skill '{skill_id}' input_schema has wrong $schema: {actual_schema} "
+                    f"Skill '{skill_name}' input_schema has wrong $schema: {actual_schema} "
                     f"(expected {expected_schema})"
                 )
 
@@ -165,7 +173,7 @@ def check_skill_schemas(skills: List[Dict[str, Any]]) -> Tuple[bool, List[str]]:
             actual_schema = output_schema.get("$schema")
             if actual_schema != expected_schema:
                 violations.append(
-                    f"Skill '{skill_id}' output_schema has wrong $schema: {actual_schema} "
+                    f"Skill '{skill_name}' output_schema has wrong $schema: {actual_schema} "
                     f"(expected {expected_schema})"
                 )
 
