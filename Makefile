@@ -687,6 +687,23 @@ deploy-help: ## Show deployment help and requirements
 	@echo "  SLACK_SIGNING_SECRET"
 	@echo "  SLACK_BOT_TOKEN"
 
+#################################
+# Dev E2E Simulation (Phase 33)
+#################################
+
+simulate-dev-agent-engine: ## Simulate query to Bob on Agent Engine (dev)
+	@echo "$(BLUE)🧪 Simulating Bob Agent Engine query (dev)...$(NC)"
+	@$(PYTHON) scripts/simulate_bob_agent_engine_dev.py
+	@echo ""
+
+simulate-dev-slack-local: ## Simulate Slack event hitting gateway locally
+	@echo "$(BLUE)🧪 Simulating Slack event (local)...$(NC)"
+	@$(PYTHON) scripts/simulate_slack_event_local.py
+	@echo ""
+
+simulate-dev-e2e-all: simulate-dev-agent-engine simulate-dev-slack-local ## Run all dev E2E simulations
+	@echo "$(GREEN)✅ All dev E2E simulations completed!$(NC)"
+
 .PHONY: help setup test lint format clean docker version benchmark ci all
 .PHONY: install-hooks deps format-check type-check
 .PHONY: test-v1 test-v2 test-coverage
@@ -701,3 +718,4 @@ deploy-help: ## Show deployment help and requirements
 .PHONY: live3-dev-smoke live3-dev-smoke-verbose live3-dev-smoke-all
 .PHONY: slack-dev-smoke slack-dev-smoke-verbose slack-dev-smoke-health slack-dev-smoke-cloud
 .PHONY: deploy-dev deploy-staging deploy-prod deploy-status deploy-logs deploy-list deploy-help
+.PHONY: simulate-dev-agent-engine simulate-dev-slack-local simulate-dev-e2e-all
