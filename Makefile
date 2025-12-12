@@ -283,6 +283,11 @@ check-config: ## Validate environment configuration for current DEPLOYMENT_ENV
 	@echo "$(BLUE)🔍 Validating config for DEPLOYMENT_ENV=$${DEPLOYMENT_ENV:-dev}...$(NC)"
 	@$(PYTHON) scripts/check_config_all.py
 
+check-security: ## Check for security issues (Phase 46)
+	@echo "$(BLUE)🔐 Running Security Validation (Phase 46)...$(NC)"
+	@bash scripts/ci/check_security.sh
+	@echo ""
+
 check-rag-readiness: ## Check RAG readiness for Bob and foreman (ARV gate)
 	@echo "$(BLUE)🔍 Checking RAG Readiness...$(NC)"
 	@$(PYTHON) scripts/check_rag_readiness.py

@@ -219,6 +219,9 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Run security validation (Phase 46)
+        run: bash scripts/ci/check_security.sh
+
       - name: Run Bandit security scan
         run: |
           pip install bandit
