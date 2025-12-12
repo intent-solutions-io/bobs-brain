@@ -539,6 +539,24 @@ slack-dev-smoke-cloud: ## Run Slack smoke test against Cloud Run deployment
 	@echo "$(GREEN)✅ Cloud Run smoke test completed!$(NC)"
 
 #################################
+# Phase 44: Slack Synthetic E2E Tests
+#################################
+
+slack-synthetic-e2e-dev: ## Run Slack synthetic E2E tests against dev (Phase 44)
+	@echo "$(BLUE)🧪 Running Slack Synthetic E2E Tests (Dev)...$(NC)"
+	@echo "$(YELLOW)ℹ️  Requires SLACK_GATEWAY_URL_DEV to be set$(NC)"
+	@$(PYTEST) tests/slack_e2e/test_slack_gateway_synthetic_dev.py -v || echo "⚠️  Tests skipped (SLACK_GATEWAY_URL_DEV not set)"
+
+slack-synthetic-e2e-stage: ## Run Slack synthetic E2E tests against stage (Phase 44)
+	@echo "$(BLUE)🧪 Running Slack Synthetic E2E Tests (Stage)...$(NC)"
+	@echo "$(YELLOW)ℹ️  Requires SLACK_GATEWAY_URL_STAGE to be set$(NC)"
+	@SLACK_GATEWAY_URL_DEV=$${SLACK_GATEWAY_URL_STAGE} $(PYTEST) tests/slack_e2e/ -v || echo "⚠️  Tests skipped (SLACK_GATEWAY_URL_STAGE not set)"
+
+slack-synthetic-e2e-local: ## Run Slack synthetic E2E tests against localhost
+	@echo "$(BLUE)🧪 Running Slack Synthetic E2E Tests (localhost:8080)...$(NC)"
+	@SLACK_GATEWAY_URL_DEV=http://localhost:8080 $(PYTEST) tests/slack_e2e/ -v
+
+#################################
 # A2A Inspector (Debugging & Validation)
 #################################
 
@@ -700,4 +718,5 @@ deploy-help: ## Show deployment help and requirements
 .PHONY: run-swe-pipeline-demo run-swe-pipeline-interactive
 .PHONY: live3-dev-smoke live3-dev-smoke-verbose live3-dev-smoke-all
 .PHONY: slack-dev-smoke slack-dev-smoke-verbose slack-dev-smoke-health slack-dev-smoke-cloud
+.PHONY: slack-synthetic-e2e-dev slack-synthetic-e2e-stage slack-synthetic-e2e-local
 .PHONY: deploy-dev deploy-staging deploy-prod deploy-status deploy-logs deploy-list deploy-help
