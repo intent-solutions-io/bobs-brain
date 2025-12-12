@@ -320,11 +320,70 @@ ls 000-docs/127-*
 
 ---
 
-## 6. Changelog / Maintenance
+## 6. Using bobs-brain as a Template
 
-**Last Update:** 2025-12-05
+This repository is designed to be a **reference implementation** that other agent repos can clone and adapt.
+
+### Steps for a New Repo
+
+1. **Clone/Copy Structure**
+   - Copy the directory structure (agents/, service/, infra/, 000-docs/)
+   - Keep Makefile, CLAUDE.md patterns
+
+2. **Update Project IDs**
+   - `infra/terraform/envs/*.tfvars` - Change all project IDs
+   - `config/agent_engine_envs.yaml` - Update project/engine mappings
+
+3. **Update SPIFFE IDs**
+   - Agent cards in `agents/*/a2a_card.py`
+   - 6767 docs referencing specific IDs
+   - Format: `spiffe://<org>/agent/<name>/<env>/<region>/<version>`
+
+4. **Re-run Validation Suite**
+   ```bash
+   make check-a2a-contracts   # Validate AgentCards
+   make arv-department        # ARV gate checks
+   make check-config          # Config validation
+   make check-all             # Full suite
+   ```
+
+### Do NOT Do This
+
+- **Don't deploy with gcloud** - Use Terraform + CI only (R4)
+- **Don't bypass Terraform/CI** - All infra changes through IaC
+- **Don't add nested folders under 000-docs/** - Keep flat (R6)
+- **Don't copy secrets directly** - Use Secret Manager references
+- **Don't skip ARV gates** - Always validate before deploy
+- **Don't import non-ADK frameworks** - Keep ADK-only (R1)
+
+### Key Files to Customize
+
+| File | What to Change |
+|------|----------------|
+| `VERSION` | Your version number |
+| `CLAUDE.md` | Your project-specific guidance |
+| `config/agent_engine_envs.yaml` | Your GCP projects and engine IDs |
+| `infra/terraform/envs/*.tfvars` | Your GCP project IDs and secrets |
+| `agents/*/a2a_card.py` | Your SPIFFE IDs and URLs |
+
+### Reference Docs for Cloning
+
+- `000-docs/191-INDEX-bobs-brain-reference-map.md` - Master doc index
+- `000-docs/192-OVERVIEW-new-engineer-quickstart.md` - Onboarding guide
+- `000-docs/6767-DR-GUIDE-porting-iam-department-to-new-repo.md` - Porting guide
+
+---
+
+## 7. Changelog / Maintenance
+
+**Last Update:** 2025-12-11
 
 **Recent Changes:**
+- **Phases 30-32 (v0.14.1+)**: Stage env baseline, promotion strategy, reference template hardening
+  - Added stage.tfvars and terraform-stage.yml workflow
+  - Created agent engine promotion config and playbook
+  - Added reference map index and new engineer quickstart
+  - Updated CLAUDE.md with template usage instructions
 - **Phase 26 (v0.14.0)**: Repository cleanup, branch archival tooling, and release
   - Created `scripts/maintenance/cleanup_branches.sh` for safe branch archival
   - Added `000-docs/ARCHIVED_BRANCHES.md` branch management index
