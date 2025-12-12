@@ -26,7 +26,8 @@ import logging
 import hashlib
 import hmac
 import time
-from typing import Dict, Any
+import uuid
+from typing import Dict, Any, Optional
 from fastapi import FastAPI, HTTPException, Request, Header
 from fastapi.responses import JSONResponse
 import httpx
@@ -49,6 +50,11 @@ PORT = int(os.getenv("PORT", "8080"))
 # A2A Gateway URL (SLACK-ENDTOEND-DEV: S2)
 # Preferred routing: Slack → a2a_gateway → Agent Engine
 A2A_GATEWAY_URL = os.getenv("A2A_GATEWAY_URL")
+
+# Resilience configuration (Phase 45)
+AGENT_ENGINE_TIMEOUT_SECONDS = int(os.getenv("AGENT_ENGINE_TIMEOUT_SECONDS", "60"))
+AGENT_ENGINE_RETRY_ENABLED = os.getenv("AGENT_ENGINE_RETRY_ENABLED", "true").lower() == "true"
+AGENT_ENGINE_MAX_RETRIES = int(os.getenv("AGENT_ENGINE_MAX_RETRIES", "1"))
 
 # Agent Engine REST API endpoint (fallback/legacy)
 AGENT_ENGINE_URL = None
@@ -170,6 +176,9 @@ async def slack_events(
     Returns:
         dict: Slack-formatted response
     """
+    # Generate correlation ID for request tracing (Phase 45)
+    correlation_id = str(uuid.uuid4())
+
     try:
         # Read raw body for signature verification
         body = await request.body()
@@ -179,7 +188,7 @@ async def slack_events(
             if not verify_slack_signature(
                 body, x_slack_request_timestamp, x_slack_signature
             ):
-                logger.warning("Invalid Slack signature")
+                logger.warning("Invalid Slack signature", extra={"correlation_id": correlation_id})
                 raise HTTPException(status_code=401, detail="Invalid signature")
 
         # Parse JSON
@@ -187,7 +196,7 @@ async def slack_events(
 
         # Slack URL verification challenge
         if data.get("type") == "url_verification":
-            logger.info("Slack URL verification challenge received")
+            logger.info("Slack URL verification challenge received", extra={"correlation_id": correlation_id})
             return {"challenge": data.get("challenge")}
 
         # Handle event callback
@@ -197,12 +206,12 @@ async def slack_events(
 
             # Ignore bot messages (prevent loops)
             if event.get("bot_id"):
-                logger.info("Ignoring bot message")
+                logger.info("Ignoring bot message", extra={"correlation_id": correlation_id})
                 return {"ok": True}
 
             # Ignore retry attempts (Slack retries if no 200 within 3s)
             if request.headers.get("x-slack-retry-num"):
-                logger.info("Ignoring Slack retry")
+                logger.info("Ignoring Slack retry", extra={"correlation_id": correlation_id})
                 return {"ok": True}
 
             # Extract message text
@@ -214,6 +223,7 @@ async def slack_events(
             logger.info(
                 f"Slack event: {event_type}",
                 extra={
+                    "correlation_id": correlation_id,
                     "user": user_id,
                     "channel": channel_id,
                     "text_length": len(text),
@@ -224,33 +234,33 @@ async def slack_events(
             text = text.replace("<@U07NRCYJX8A>", "").strip()  # Bob's user ID
 
             if not text:
-                logger.info("Empty message after mention removal")
+                logger.info("Empty message after mention removal", extra={"correlation_id": correlation_id})
                 return {"ok": True}
 
             # Query Agent Engine via REST (R3: no local Runner)
             agent_response = await query_agent_engine(
-                query=text, session_id=f"{user_id}_{channel_id}"
+                query=text, session_id=f"{user_id}_{channel_id}", correlation_id=correlation_id
             )
 
             # Post response to Slack
             await post_slack_message(
-                channel=channel_id, text=agent_response, thread_ts=thread_ts
+                channel=channel_id, text=agent_response, thread_ts=thread_ts, correlation_id=correlation_id
             )
 
             return {"ok": True}
 
-        logger.warning(f"Unhandled Slack event type: {data.get('type')}")
+        logger.warning(f"Unhandled Slack event type: {data.get('type')}", extra={"correlation_id": correlation_id})
         return {"ok": True}
 
     except Exception as e:
-        logger.error(f"Slack event processing failed: {e}", exc_info=True)
+        logger.error(f"Slack event processing failed: {e}", extra={"correlation_id": correlation_id}, exc_info=True)
         # Return 200 to Slack to prevent retries
         return {"ok": True}
 
 
-async def query_agent_engine(query: str, session_id: str) -> str:
+async def query_agent_engine(query: str, session_id: str, correlation_id: str = "") -> str:
     """
-    Query Agent Engine via REST API.
+    Query Agent Engine via REST API with retry support (Phase 45).
 
     R3 Compliance: Proxies to Agent Engine, does not run locally.
 
@@ -258,122 +268,218 @@ async def query_agent_engine(query: str, session_id: str) -> str:
     - Option B (preferred): Route through a2a_gateway for consistency
     - Option A (fallback): Direct Agent Engine proxy
 
+    Phase 45 Enhancements:
+    - Configurable timeout via AGENT_ENGINE_TIMEOUT_SECONDS
+    - Retry logic for 5xx errors (bounded, safe for idempotent queries)
+    - Correlation ID propagation for debugging
+
     Args:
         query: User query text
         session_id: Session identifier for memory
+        correlation_id: Request correlation ID for tracing
 
     Returns:
         str: Agent response text
     """
-    try:
-        # ===========================================================================
-        # SLACK-ENDTOEND-DEV S2: OPTION B ROUTING (IMPLEMENTED)
-        # ===========================================================================
-        if A2A_GATEWAY_URL:
-            # Option B: Route through a2a_gateway for consistency with other frontends
-            logger.info(
-                "Routing to a2a_gateway (Option B - via a2a protocol)",
-                extra={
-                    "query_length": len(query),
-                    "session_id": session_id,
-                    "a2a_gateway_url": A2A_GATEWAY_URL,
-                },
-            )
+    timeout = float(AGENT_ENGINE_TIMEOUT_SECONDS)
+    max_retries = AGENT_ENGINE_MAX_RETRIES if AGENT_ENGINE_RETRY_ENABLED else 0
+    attempt = 0
+    last_error: Optional[Exception] = None
 
-            # Build A2A call payload following A2AAgentCall schema
-            a2a_payload = {
-                "agent_role": "bob",  # Target Bob orchestrator
-                "prompt": query,
-                "session_id": session_id,
-                "caller_spiffe_id": "spiffe://intent.solutions/slack/webhook",
-                "env": os.getenv("DEPLOYMENT_ENV", "dev"),
-            }
-
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    f"{A2A_GATEWAY_URL}/a2a/run",
-                    json=a2a_payload,
-                    headers={"Content-Type": "application/json"},
-                )
-                response.raise_for_status()
-                result = response.json()
-
-            # Extract response from A2AAgentResult
-            response_text = result.get("response", "No response from A2A gateway")
-
-            # Check for errors in A2A result
-            if result.get("error"):
-                logger.error(
-                    "A2A gateway returned error",
+    while attempt <= max_retries:
+        attempt += 1
+        try:
+            # ===========================================================================
+            # SLACK-ENDTOEND-DEV S2: OPTION B ROUTING (IMPLEMENTED)
+            # ===========================================================================
+            if A2A_GATEWAY_URL:
+                # Option B: Route through a2a_gateway for consistency with other frontends
+                logger.info(
+                    "Routing to a2a_gateway (Option B - via a2a protocol)",
                     extra={
-                        "error": result.get("error"),
+                        "correlation_id": correlation_id,
+                        "query_length": len(query),
                         "session_id": session_id,
+                        "a2a_gateway_url": A2A_GATEWAY_URL,
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "timeout_seconds": timeout,
                     },
                 )
-                return "Sorry, I encountered an error processing your request."
 
-            logger.info(
-                "A2A gateway response received",
-                extra={
-                    "response_length": len(response_text),
-                    "session_id": result.get("session_id"),
-                    "correlation_id": result.get("correlation_id"),
-                },
-            )
-
-            return response_text
-
-        else:
-            # Option A (fallback): Direct Agent Engine proxy
-            logger.info(
-                "Routing directly to Agent Engine (Option A - fallback)",
-                extra={
-                    "query_length": len(query),
+                # Build A2A call payload following A2AAgentCall schema
+                a2a_payload = {
+                    "agent_role": "bob",  # Target Bob orchestrator
+                    "prompt": query,
                     "session_id": session_id,
-                    "agent_engine_url": AGENT_ENGINE_URL,
-                },
-            )
+                    "caller_spiffe_id": "spiffe://intent.solutions/slack/webhook",
+                    "env": os.getenv("DEPLOYMENT_ENV", "dev"),
+                }
 
-            payload = {"query": query, "session_id": session_id}
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        f"{A2A_GATEWAY_URL}/a2a/run",
+                        json=a2a_payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+                    response.raise_for_status()
+                    result = response.json()
 
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    AGENT_ENGINE_URL,
-                    json=payload,
-                    headers={"Content-Type": "application/json"},
+                # Extract response from A2AAgentResult
+                response_text = result.get("response", "No response from A2A gateway")
+
+                # Check for errors in A2A result
+                if result.get("error"):
+                    logger.error(
+                        "A2A gateway returned error",
+                        extra={
+                            "correlation_id": correlation_id,
+                            "error": result.get("error"),
+                            "session_id": session_id,
+                            "attempt": attempt,
+                        },
+                    )
+                    return "Sorry, I encountered an error processing your request."
+
+                logger.info(
+                    "A2A gateway response received",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "response_length": len(response_text),
+                        "session_id": result.get("session_id"),
+                        "attempt": attempt,
+                    },
                 )
 
-                response.raise_for_status()
-                result = response.json()
+                return response_text
 
-            # Extract response text (adjust based on Agent Engine response format)
-            response_text = result.get("response", "I couldn't generate a response.")
+            else:
+                # Option A (fallback): Direct Agent Engine proxy
+                logger.info(
+                    "Routing directly to Agent Engine (Option A - fallback)",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "query_length": len(query),
+                        "session_id": session_id,
+                        "agent_engine_url": AGENT_ENGINE_URL,
+                        "attempt": attempt,
+                        "max_retries": max_retries,
+                        "timeout_seconds": timeout,
+                    },
+                )
 
-            logger.info(
-                "Agent Engine response received",
-                extra={"response_length": len(response_text), "session_id": session_id},
+                payload = {"query": query, "session_id": session_id}
+
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    response = await client.post(
+                        AGENT_ENGINE_URL,
+                        json=payload,
+                        headers={"Content-Type": "application/json"},
+                    )
+
+                    response.raise_for_status()
+                    result = response.json()
+
+                # Extract response text (adjust based on Agent Engine response format)
+                response_text = result.get("response", "I couldn't generate a response.")
+
+                logger.info(
+                    "Agent Engine response received",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "response_length": len(response_text),
+                        "session_id": session_id,
+                        "attempt": attempt,
+                    },
+                )
+
+                return response_text
+
+        except httpx.HTTPStatusError as e:
+            last_error = e
+            status_code = e.response.status_code
+
+            # Only retry on 5xx server errors (safe for idempotent queries)
+            if 500 <= status_code < 600 and attempt <= max_retries:
+                logger.warning(
+                    f"HTTP {status_code} error, retrying ({attempt}/{max_retries + 1})",
+                    extra={
+                        "correlation_id": correlation_id,
+                        "status_code": status_code,
+                        "attempt": attempt,
+                        "will_retry": attempt <= max_retries,
+                    },
+                )
+                continue
+
+            # Non-retryable error or exhausted retries
+            logger.error(
+                f"HTTP error during agent call: {status_code}",
+                extra={
+                    "correlation_id": correlation_id,
+                    "detail": e.response.text[:500] if e.response.text else None,
+                    "error_type": "http_status",
+                    "attempt": attempt,
+                },
+                exc_info=True,
             )
+            return "Sorry, I encountered an error processing your request."
 
-            return response_text
+        except httpx.TimeoutException as e:
+            last_error = e
+            logger.error(
+                f"Request timed out after {timeout}s",
+                extra={
+                    "correlation_id": correlation_id,
+                    "timeout_seconds": timeout,
+                    "error_type": "timeout",
+                    "attempt": attempt,
+                },
+                exc_info=True,
+            )
+            return "Sorry, my request timed out. Please try again."
 
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            f"HTTP error during agent call: {e.response.status_code}",
-            extra={"detail": e.response.text},
-            exc_info=True,
-        )
-        return "Sorry, I encountered an error processing your request."
+        except httpx.RequestError as e:
+            last_error = e
+            logger.error(
+                f"Failed to connect to backend: {e}",
+                extra={
+                    "correlation_id": correlation_id,
+                    "error_type": "connection",
+                    "attempt": attempt,
+                },
+                exc_info=True,
+            )
+            return "Sorry, I'm having trouble connecting to my backend."
 
-    except httpx.RequestError as e:
-        logger.error(f"Failed to connect to backend: {e}", exc_info=True)
-        return "Sorry, I'm having trouble connecting to my backend."
+        except Exception as e:
+            last_error = e
+            logger.error(
+                f"Query processing failed: {e}",
+                extra={
+                    "correlation_id": correlation_id,
+                    "error_type": "unknown",
+                    "attempt": attempt,
+                },
+                exc_info=True,
+            )
+            return "Sorry, something went wrong."
 
-    except Exception as e:
-        logger.error(f"Query processing failed: {e}", exc_info=True)
-        return "Sorry, something went wrong."
+    # Should not reach here, but handle exhausted retries
+    logger.error(
+        "All retry attempts exhausted",
+        extra={
+            "correlation_id": correlation_id,
+            "total_attempts": attempt,
+            "last_error": str(last_error) if last_error else None,
+        },
+    )
+    return "Sorry, I encountered an error after multiple attempts."
 
 
-async def post_slack_message(channel: str, text: str, thread_ts: str = None) -> None:
+async def post_slack_message(
+    channel: str, text: str, thread_ts: Optional[str] = None, correlation_id: str = ""
+) -> None:
     """
     Post message to Slack channel.
 
@@ -381,6 +487,7 @@ async def post_slack_message(channel: str, text: str, thread_ts: str = None) -> 
         channel: Slack channel ID
         text: Message text
         thread_ts: Thread timestamp (for replies)
+        correlation_id: Request correlation ID for tracing
     """
     try:
         payload = {"channel": channel, "text": text}
@@ -393,11 +500,15 @@ async def post_slack_message(channel: str, text: str, thread_ts: str = None) -> 
 
         logger.info(
             "Message posted to Slack",
-            extra={"channel": channel, "thread_ts": thread_ts},
+            extra={"correlation_id": correlation_id, "channel": channel, "thread_ts": thread_ts},
         )
 
     except Exception as e:
-        logger.error(f"Failed to post Slack message: {e}", exc_info=True)
+        logger.error(
+            f"Failed to post Slack message: {e}",
+            extra={"correlation_id": correlation_id, "channel": channel},
+            exc_info=True,
+        )
 
 
 @app.get("/health")
@@ -421,13 +532,19 @@ async def health() -> Dict[str, Any]:
     return {
         "status": "healthy" if (not SLACK_BOB_ENABLED or config_valid) else "degraded",
         "service": "slack-webhook",
-        "version": "0.7.0",
+        "version": "0.8.0",  # Phase 45: Resilience & Error-Handling
         "slack_bot_enabled": SLACK_BOB_ENABLED,
         "config_valid": config_valid,
         "missing_vars": missing_vars if not config_valid else [],
         "routing": routing,
         "a2a_gateway_url": A2A_GATEWAY_URL if A2A_GATEWAY_URL else None,
         "agent_engine_url": AGENT_ENGINE_URL if AGENT_ENGINE_URL and not A2A_GATEWAY_URL else None,
+        # Phase 45: Resilience configuration
+        "resilience": {
+            "timeout_seconds": AGENT_ENGINE_TIMEOUT_SECONDS,
+            "retry_enabled": AGENT_ENGINE_RETRY_ENABLED,
+            "max_retries": AGENT_ENGINE_MAX_RETRIES,
+        },
     }
 
 
@@ -441,7 +558,7 @@ async def root() -> Dict[str, str]:
     """
     return {
         "name": "Bob's Brain Slack Webhook",
-        "version": "0.6.0",
+        "version": "0.8.0",
         "description": "Slack event handler proxying to Vertex AI Agent Engine",
         "endpoints": {"events": "/slack/events", "health": "/health"},
     }
