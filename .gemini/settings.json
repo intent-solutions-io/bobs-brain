@@ -1,0 +1,27 @@
+{
+  "code_review": {
+    "enabled": true,
+    "auto_review_on_pr": true,
+    "review_on_push": false,
+    "severity_threshold": "MEDIUM",
+    "max_comments": 20,
+    "ignore_paths": [
+      "000-docs/**",
+      "*.md",
+      "*.json",
+      "*.yaml",
+      "*.yml",
+      ".github/dependabot.yml"
+    ],
+    "focus_areas": [
+      "security",
+      "performance",
+      "best_practices",
+      "bugs"
+    ]
+  },
+  "summary": {
+    "enabled": true,
+    "auto_summary_on_pr": true
+  }
+}
