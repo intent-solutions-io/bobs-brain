@@ -31,7 +31,7 @@ except ImportError:
     GCS_AVAILABLE = False
 
 # Import config helpers
-from ...config.storage import (
+from ..config.storage import (
     get_org_storage_bucket,
     is_org_storage_write_enabled,
     make_portfolio_run_summary_path,

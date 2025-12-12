@@ -4,14 +4,43 @@ A2A Protocol Data Types
 Defines the core data structures for agent-to-agent communication.
 
 Classes:
+- AgentCard: Agent identity and capabilities for A2A discovery
 - A2ATask: Request envelope for specialist invocation
 - A2AResult: Response envelope from specialist
 - A2AError: Exception raised for A2A protocol violations
 """
 
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional, Literal
+from typing import Dict, Any, Optional, Literal, List
 from datetime import datetime
+
+
+class AgentCard(BaseModel):
+    """
+    AgentCard model for A2A protocol (R7 compliant).
+
+    Represents an agent's identity, capabilities, and skills.
+    This is the canonical type for AgentCard - individual agent
+    a2a_card.py files should import from here.
+
+    Fields:
+        name: Agent name
+        version: Agent version
+        url: Agent public URL
+        description: Agent description (must include SPIFFE ID per R7)
+        capabilities: Agent capabilities list
+        default_input_modes: Supported input modes (default: ["text"])
+        default_output_modes: Supported output modes (default: ["text"])
+        skills: Agent skills with input/output schemas
+    """
+    name: str = Field(..., description="Agent name")
+    version: str = Field(..., description="Agent version")
+    url: str = Field(..., description="Agent public URL")
+    description: str = Field(..., description="Agent description (must include SPIFFE ID per R7)")
+    capabilities: List[str] = Field(default_factory=list, description="Agent capabilities")
+    default_input_modes: List[str] = Field(default_factory=lambda: ["text"], description="Supported input modes")
+    default_output_modes: List[str] = Field(default_factory=lambda: ["text"], description="Supported output modes")
+    skills: List[Dict[str, Any]] = Field(default_factory=list, description="Agent skills")
 
 
 class A2ATask(BaseModel):

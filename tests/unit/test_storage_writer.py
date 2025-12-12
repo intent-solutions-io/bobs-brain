@@ -9,12 +9,24 @@ import json
 from unittest.mock import patch, MagicMock, call
 from datetime import datetime
 
-# Add agents to path
+# Add agents to path (as a proper package)
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "agents"))
 
-from shared_contracts import PortfolioResult, PerRepoResult, PipelineResult, Severity, IssueType
+# Insert repo root so "agents" becomes a proper top-level package
+repo_root = str(Path(__file__).parent.parent.parent)
+if repo_root not in sys.path:
+    sys.path.insert(0, repo_root)
+
+# Now import from agents package properly
+from agents.shared_contracts import PortfolioResult, PerRepoResult, PipelineResult, Severity, IssueType
+
+# Import the storage_writer module through proper package path
+# This ensures relative imports work correctly
+from agents.iam_senior_adk_devops_lead import storage_writer
+
+# Register the module under the path that @patch decorators expect
+sys.modules["iam_senior_adk_devops_lead.storage_writer"] = storage_writer
 
 
 class TestWritePortfolioResultToGCS:
@@ -38,7 +50,7 @@ class TestWritePortfolioResultToGCS:
         import logging
         from iam_senior_adk_devops_lead.storage_writer import write_portfolio_result_to_gcs
 
-        caplog.set_level(logging.INFO, logger="iam_senior_adk_devops_lead.storage_writer")
+        caplog.set_level(logging.INFO, logger="agents.iam_senior_adk_devops_lead.storage_writer")
         mock_enabled.return_value = False
 
         result = self._create_sample_portfolio_result()
@@ -117,7 +129,7 @@ class TestWritePortfolioResultToGCS:
         import logging
         from iam_senior_adk_devops_lead.storage_writer import write_portfolio_result_to_gcs
 
-        caplog.set_level(logging.INFO, logger="iam_senior_adk_devops_lead.storage_writer")
+        caplog.set_level(logging.INFO, logger="agents.iam_senior_adk_devops_lead.storage_writer")
         mock_enabled.return_value = True
         mock_bucket.return_value = "test-bucket"
         mock_build_json.return_value = {"test": "data"}

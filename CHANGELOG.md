@@ -7,6 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.1] - 2025-12-11
+
+### Fixed - Critical Bug Fixes & Test Stability
+
+- **Storage Writer Import Bug**
+  - Fixed incorrect relative import in `agents/iam_senior_adk_devops_lead/storage_writer.py`
+  - Changed `from ...config.storage` (invalid 3-level import) to `from ..config.storage`
+  - This bug prevented storage writer from loading in unit tests
+
+- **Unit Test Fixes**
+  - Fixed 14 failing tests in `test_storage_writer.py` by correcting module import path
+  - Updated logger name from `"iam_senior_adk_devops_lead.storage_writer"` to `"agents.iam_senior_adk_devops_lead.storage_writer"`
+  - Fixed 2 failing tests in `test_imports.py` by adding canonical `AgentCard` class
+
+- **A2A Types Enhancement**
+  - Added `AgentCard` class to `agents/a2a/types.py` as canonical shared type
+  - Individual agent `a2a_card.py` files can now import from central location
+
+- **CI/CD Alignment**
+  - Fixed A2A readiness check to use `name` field instead of `skill_id` per A2A protocol spec
+  - Aligned secret names in deployment workflows
+
+### Repository Metrics
+- **Test Results:** 197 passed, 0 failed (was 181 passed, 16 failed)
+- **Quality Score:** 95/100 (maintained)
+- **Documentation:** 182 docs (unchanged)
+
 ## [0.14.0] - 2025-12-05
 
 ### Added - Documentation Excellence & Community Contributions
