@@ -202,3 +202,22 @@ variable "org_storage_writer_service_accounts" {
   type        = list(string)
   default     = []
 }
+
+# ==============================================================================
+# Workload Identity Federation (Phase 46: Security & IAM Hardening)
+# ==============================================================================
+# Enable keyless authentication for GitHub Actions CI/CD.
+# Default: disabled (requires one-time GCP console setup)
+# ==============================================================================
+
+variable "enable_wif" {
+  description = "Enable Workload Identity Federation for GitHub Actions"
+  type        = bool
+  default     = false
+}
+
+variable "github_repository" {
+  description = "GitHub repository for WIF (format: org/repo)"
+  type        = string
+  default     = "intent-solutions-io/bobs-brain"
+}

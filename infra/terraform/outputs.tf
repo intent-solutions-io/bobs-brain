@@ -91,6 +91,22 @@ output "spiffe_id" {
   value       = var.agent_spiffe_id
 }
 
+# Workload Identity Federation Outputs (Phase 46)
+output "wif_enabled" {
+  description = "Whether Workload Identity Federation is enabled"
+  value       = var.enable_wif
+}
+
+output "wif_pool_name" {
+  description = "Workload Identity Pool name for GitHub Actions"
+  value       = var.enable_wif ? google_iam_workload_identity_pool.github_actions[0].name : null
+}
+
+output "wif_provider_name" {
+  description = "Workload Identity Pool Provider name"
+  value       = var.enable_wif ? google_iam_workload_identity_pool_provider.github_actions[0].name : null
+}
+
 # Deployment Summary
 output "deployment_summary" {
   description = "Deployment summary with all important URLs"
@@ -107,5 +123,6 @@ output "deployment_summary" {
     slack_events_url      = module.slack_bob_gateway.webhook_url
     slack_bob_enabled     = module.slack_bob_gateway.enabled
     spiffe_id             = var.agent_spiffe_id
+    wif_enabled           = var.enable_wif
   }
 }
