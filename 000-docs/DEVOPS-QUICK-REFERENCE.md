@@ -1,7 +1,7 @@
 # Bob's Brain - DevOps Quick Reference Card
 **For:** Operations teams needing quick answers
-**Updated:** 2025-11-21
-**Version:** v0.10.0
+**Updated:** 2025-12-12
+**Version:** v0.15.0
 
 ---
 
@@ -448,8 +448,8 @@ gh workflow run deploy-dev.yml --ref main
 
 ## Quick Facts
 
-- **Repo:** https://github.com/jeremylongshore/bobs-brain
-- **Version:** 0.10.0 (released 2025-11-21)
+- **Repo:** https://github.com/intent-solutions-io/bobs-brain
+- **Version:** 0.15.0 (released 2025-12-12)
 - **Python:** 3.12+ required
 - **Cost:** ~$300-400/month (all environments)
 - **Uptime Target:** 99.5% (SLA for Agent Engine)
