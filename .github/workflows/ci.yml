@@ -67,6 +67,24 @@ jobs:
         env:
           PYTHONPATH: .
 
+  # Phase 37: Versioning & Tagging Guardrails
+  # Validates VERSION file and git tags for consistency
+  versioning-check:
+    runs-on: ubuntu-latest
+    needs: drift-check  # Only run if drift check passes
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full clone to get tags
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check versioning and tags (Phase 37)
+        run: python scripts/check_versioning.py --verbose
+
   # ARV-DEPT: Comprehensive department readiness verification
   # Includes: config, tests, RAG, engine, storage, notifications (LIVE3)
   # LIVE3 readiness check is NON-BLOCKING (informational only)
@@ -362,7 +380,7 @@ jobs:
   # Summary job that depends on all checks
   ci-success:
     runs-on: ubuntu-latest
-    needs: [drift-check, arv-department, slack-gateway-validation, lint, test, security, terraform-validate, documentation-check, structure-validation]
+    needs: [drift-check, versioning-check, arv-department, slack-gateway-validation, lint, test, security, terraform-validate, documentation-check, structure-validation]
     steps:
       - name: CI Success
         run: |

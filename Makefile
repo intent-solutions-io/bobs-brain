@@ -452,6 +452,20 @@ arv-gates: check-rag-readiness check-arv-minimum check-arv-engine-flags check-ar
 	@echo "$(GREEN)✅ All ARV gates passed!$(NC)"
 
 #################################
+# Versioning & Tagging (Phase 37)
+#################################
+
+check-versioning: ## Check VERSION file and git tags for consistency (Phase 37)
+	@echo "$(BLUE)🔍 Checking versioning and tags...$(NC)"
+	@$(PYTHON) scripts/check_versioning.py
+	@echo ""
+
+check-versioning-verbose: ## Verbose versioning check with details
+	@echo "$(BLUE)🔍 Checking versioning and tags (Verbose)...$(NC)"
+	@$(PYTHON) scripts/check_versioning.py --verbose
+	@echo ""
+
+#################################
 # SWE Pipeline Testing
 #################################
 
