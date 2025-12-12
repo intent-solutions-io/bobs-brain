@@ -1,0 +1,106 @@
+# Agent Engine Environment Mapping
+#
+# Maps each agent to its ReasoningEngine ID per environment.
+# Used by: scripts/promote_agent_engine_config.py
+#
+# Promotion Flow:
+#   dev (validated) -> stage (validated) -> prod (deployed)
+#
+# To update after deployment:
+#   1. Deploy agent to environment
+#   2. Get engine ID from Vertex AI Console or deployment output
+#   3. Update this file with the actual ID
+#   4. Commit change to repo
+#
+# TODO placeholders: Search for "TODO-SET-" to find values that need updating
+
+# Version info
+schema_version: "1.0.0"
+last_updated: "2025-12-11"
+app_version: "0.14.1"
+
+# Agent configurations
+agents:
+  # Bob - Main orchestrator agent
+  bob:
+    display_name: "Bob's Brain"
+    description: "Global orchestrator for the ADK compliance department"
+    agent_dir: "agents/bob"
+    environments:
+      dev:
+        project_id: "bobs-brain-dev"
+        region: "us-central1"
+        engine_id: "TODO-SET-DEV-ENGINE-ID"
+        engine_name: "bobs-brain-dev"
+        status: "pending"  # pending | deployed | validated
+      stage:
+        project_id: "bobs-brain-stage"
+        region: "us-central1"
+        engine_id: "TODO-SET-STAGE-ENGINE-ID"
+        engine_name: "bobs-brain-stage"
+        status: "pending"
+      prod:
+        project_id: "bobs-brain"
+        region: "us-central1"
+        engine_id: "TODO-SET-PROD-ENGINE-ID"
+        engine_name: "bobs-brain-prod"
+        status: "pending"
+
+  # Foreman - IAM Senior ADK DevOps Lead
+  foreman:
+    display_name: "IAM Senior ADK DevOps Lead"
+    description: "Workflow orchestrator for the IAM department"
+    agent_dir: "agents/iam-senior-adk-devops-lead"
+    environments:
+      dev:
+        project_id: "bobs-brain-dev"
+        region: "us-central1"
+        engine_id: "TODO-SET-DEV-ENGINE-ID"
+        engine_name: "iam-foreman-dev"
+        status: "pending"
+      stage:
+        project_id: "bobs-brain-stage"
+        region: "us-central1"
+        engine_id: "TODO-SET-STAGE-ENGINE-ID"
+        engine_name: "iam-foreman-stage"
+        status: "pending"
+      prod:
+        project_id: "bobs-brain"
+        region: "us-central1"
+        engine_id: "TODO-SET-PROD-ENGINE-ID"
+        engine_name: "iam-foreman-prod"
+        status: "pending"
+
+# Promotion requirements
+promotion:
+  dev_to_stage:
+    required_checks:
+      - "Unit tests passing"
+      - "A2A contract validation"
+      - "ARV department checks"
+      - "Drift detection clean"
+    manual_approval: false
+
+  stage_to_prod:
+    required_checks:
+      - "All dev_to_stage checks"
+      - "Stage smoke tests passing"
+      - "Stage health check OK"
+    manual_approval: true
+    approval_channel: "#deployments"
+
+# Environment metadata
+environments:
+  dev:
+    purpose: "Development and testing"
+    auto_deploy: true
+    monitoring: "basic"
+  stage:
+    purpose: "Pre-production validation"
+    auto_deploy: false
+    monitoring: "enhanced"
+  prod:
+    purpose: "Production workloads"
+    auto_deploy: false
+    monitoring: "full"
+    alerting: true

@@ -687,6 +687,35 @@ deploy-help: ## Show deployment help and requirements
 	@echo "  SLACK_SIGNING_SECRET"
 	@echo "  SLACK_BOT_TOKEN"
 
+## ============================================================================
+## Agent Engine Promotion (Phase 31) - Config-only promotion workflow
+## ============================================================================
+
+promote-agent-config-show: ## Show all agent engine environment mappings
+	@echo "$(BLUE)📋 Agent Engine Environment Mappings$(NC)"
+	@$(PYTHON) scripts/promote_agent_engine_config.py --agent all
+	@echo ""
+
+promote-agent-config-dev-to-stage: ## Show dev -> stage promotion path for all agents
+	@echo "$(BLUE)🔄 Promotion Path: dev -> stage$(NC)"
+	@$(PYTHON) scripts/promote_agent_engine_config.py --from-env dev --to-env stage --agent all
+	@echo ""
+
+promote-agent-config-stage-to-prod: ## Show stage -> prod promotion path for all agents
+	@echo "$(BLUE)🔄 Promotion Path: stage -> prod$(NC)"
+	@$(PYTHON) scripts/promote_agent_engine_config.py --from-env stage --to-env prod --agent all
+	@echo ""
+
+promote-agent-config-validate-dev-to-stage: ## Validate dev -> stage promotion readiness
+	@echo "$(BLUE)✅ Validating dev -> stage promotion...$(NC)"
+	@$(PYTHON) scripts/promote_agent_engine_config.py --from-env dev --to-env stage --agent all --validate
+	@echo ""
+
+promote-agent-config-validate-stage-to-prod: ## Validate stage -> prod promotion readiness
+	@echo "$(BLUE)✅ Validating stage -> prod promotion...$(NC)"
+	@$(PYTHON) scripts/promote_agent_engine_config.py --from-env stage --to-env prod --agent all --validate
+	@echo ""
+
 .PHONY: help setup test lint format clean docker version benchmark ci all
 .PHONY: install-hooks deps format-check type-check
 .PHONY: test-v1 test-v2 test-coverage
@@ -701,3 +730,5 @@ deploy-help: ## Show deployment help and requirements
 .PHONY: live3-dev-smoke live3-dev-smoke-verbose live3-dev-smoke-all
 .PHONY: slack-dev-smoke slack-dev-smoke-verbose slack-dev-smoke-health slack-dev-smoke-cloud
 .PHONY: deploy-dev deploy-staging deploy-prod deploy-status deploy-logs deploy-list deploy-help
+.PHONY: promote-agent-config-show promote-agent-config-dev-to-stage promote-agent-config-stage-to-prod
+.PHONY: promote-agent-config-validate-dev-to-stage promote-agent-config-validate-stage-to-prod

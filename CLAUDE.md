@@ -47,6 +47,15 @@ This is the **live** guide for Claude Code when working in the `bobs-brain` repo
 - ⛔ **NEVER run**: `gcloud run services update slack-webhook` (manual deploys violate R4)
 - 📖 **Operator Guide**: `000-docs/164-AA-REPT-phase-24-slack-bob-ci-deploy-and-restore.md`
 
+**Agent Engine Promotion (Phase 31):**
+- **Flow**: dev (validated) -> stage (validated) -> prod (deployed)
+- **Config**: `config/agent_engine_envs.yaml` - Maps agents to engine IDs per environment
+- **Commands**:
+  - `make promote-agent-config-show` - View all agent mappings
+  - `make promote-agent-config-dev-to-stage` - Show dev->stage path
+  - `make promote-agent-config-validate-dev-to-stage` - Validate promotion readiness
+- 📖 **Playbook**: `000-docs/188-RB-OPER-agent-engine-promotion-playbook.md`
+
 ---
 
 ## 2. Repo Context & Architecture
