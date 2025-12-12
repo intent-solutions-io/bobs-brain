@@ -1,0 +1,57 @@
+name: Gemini Code Review
+
+# Triggers Gemini Code Assist review immediately on PR creation/update
+# This ensures reviews happen instantly, not waiting for the 5-minute auto-trigger
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  trigger-gemini-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Gemini Code Assist Review
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            console.log(`Triggering Gemini review for PR #${prNumber}`);
+
+            // Post /gemini review command to trigger immediate review
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body: '/gemini review'
+            });
+
+            console.log('Gemini review command posted successfully');
+
+      - name: Trigger Gemini Summary
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const prNumber = context.payload.pull_request.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            // Post /gemini summary command for PR summary
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: prNumber,
+              body: '/gemini summary'
+            });
+
+            console.log('Gemini summary command posted successfully');

@@ -2,26 +2,35 @@
   "code_review": {
     "enabled": true,
     "auto_review_on_pr": true,
-    "review_on_push": false,
+    "review_on_push": true,
+    "review_on_open": true,
+    "review_on_reopen": true,
+    "review_on_synchronize": true,
     "severity_threshold": "MEDIUM",
-    "max_comments": 20,
+    "max_comments": 25,
     "ignore_paths": [
       "000-docs/**",
       "*.md",
-      "*.json",
-      "*.yaml",
-      "*.yml",
       ".github/dependabot.yml"
     ],
     "focus_areas": [
       "security",
       "performance",
       "best_practices",
-      "bugs"
+      "bugs",
+      "adk_compliance"
     ]
   },
   "summary": {
     "enabled": true,
     "auto_summary_on_pr": true
+  },
+  "commands": {
+    "review": {
+      "enabled": true
+    },
+    "summary": {
+      "enabled": true
+    }
   }
 }
