@@ -1,0 +1,137 @@
+{
+  "_comment": "Bob's Brain Observability Dashboard Definition",
+  "_version": "1.0.0",
+  "_description": "Dashboard panels for monitoring Bob and Foreman agents across environments",
+  "_usage": "Import into Cloud Monitoring or translate to Terraform google_monitoring_dashboard resource",
+
+  "displayName": "Bob's Brain - Agent Department Overview",
+
+  "gridLayout": {
+    "columns": 12,
+    "widgets": []
+  },
+
+  "panels": [
+    {
+      "title": "Agent Engine Overview",
+      "description": "High-level Agent Engine health metrics",
+      "widgets": [
+        {
+          "title": "Prediction Count (by Agent)",
+          "metric": "aiplatform.googleapis.com/reasoning_engine/prediction/count",
+          "aggregation": "ALIGN_SUM",
+          "groupBy": ["resource.labels.reasoning_engine_id"],
+          "chartType": "LINE",
+          "position": {"row": 0, "col": 0, "width": 6, "height": 4}
+        },
+        {
+          "title": "Error Count (by Agent)",
+          "metric": "aiplatform.googleapis.com/reasoning_engine/prediction/error_count",
+          "aggregation": "ALIGN_SUM",
+          "groupBy": ["resource.labels.reasoning_engine_id"],
+          "chartType": "LINE",
+          "position": {"row": 0, "col": 6, "width": 6, "height": 4}
+        },
+        {
+          "title": "Latency P95 (by Agent)",
+          "metric": "aiplatform.googleapis.com/reasoning_engine/prediction/latency",
+          "aggregation": "ALIGN_PERCENTILE_95",
+          "groupBy": ["resource.labels.reasoning_engine_id"],
+          "chartType": "LINE",
+          "position": {"row": 4, "col": 0, "width": 6, "height": 4}
+        },
+        {
+          "title": "Token Usage (Input + Output)",
+          "metric": "aiplatform.googleapis.com/reasoning_engine/prediction/token_count",
+          "aggregation": "ALIGN_SUM",
+          "groupBy": ["metric.labels.token_type"],
+          "chartType": "STACKED_AREA",
+          "position": {"row": 4, "col": 6, "width": 6, "height": 4}
+        }
+      ]
+    },
+    {
+      "title": "Gateway Health",
+      "description": "Cloud Run gateway metrics for Slack and A2A",
+      "widgets": [
+        {
+          "title": "Slack Gateway Request Count",
+          "metric": "run.googleapis.com/request_count",
+          "filter": "resource.labels.service_name=has_substring(\"slack\")",
+          "aggregation": "ALIGN_RATE",
+          "chartType": "LINE",
+          "position": {"row": 8, "col": 0, "width": 4, "height": 4}
+        },
+        {
+          "title": "Slack Gateway 5xx Errors",
+          "metric": "run.googleapis.com/request_count",
+          "filter": "resource.labels.service_name=has_substring(\"slack\") AND metric.labels.response_code_class=\"5xx\"",
+          "aggregation": "ALIGN_SUM",
+          "chartType": "LINE",
+          "position": {"row": 8, "col": 4, "width": 4, "height": 4}
+        },
+        {
+          "title": "Gateway Latency P95",
+          "metric": "run.googleapis.com/request_latencies",
+          "filter": "resource.labels.service_name=has_substring(\"gateway\") OR resource.labels.service_name=has_substring(\"slack\")",
+          "aggregation": "ALIGN_PERCENTILE_95",
+          "chartType": "LINE",
+          "position": {"row": 8, "col": 8, "width": 4, "height": 4}
+        },
+        {
+          "title": "A2A Gateway Request Count",
+          "metric": "run.googleapis.com/request_count",
+          "filter": "resource.labels.service_name=has_substring(\"a2a\")",
+          "aggregation": "ALIGN_RATE",
+          "chartType": "LINE",
+          "position": {"row": 12, "col": 0, "width": 6, "height": 4}
+        },
+        {
+          "title": "Active Instances",
+          "metric": "run.googleapis.com/container/instance_count",
+          "aggregation": "ALIGN_MEAN",
+          "groupBy": ["resource.labels.service_name"],
+          "chartType": "STACKED_AREA",
+          "position": {"row": 12, "col": 6, "width": 6, "height": 4}
+        }
+      ]
+    },
+    {
+      "title": "Tool Calls & A2A",
+      "description": "Agent tool usage and inter-agent communication",
+      "widgets": [
+        {
+          "title": "Tool Call Count (by Tool)",
+          "metric": "custom.googleapis.com/bobs_brain/tool_call_count",
+          "_note": "Custom metric - requires instrumentation",
+          "aggregation": "ALIGN_SUM",
+          "groupBy": ["metric.labels.tool_name"],
+          "chartType": "STACKED_BAR",
+          "position": {"row": 16, "col": 0, "width": 6, "height": 4}
+        },
+        {
+          "title": "A2A Call Duration",
+          "metric": "custom.googleapis.com/bobs_brain/a2a_call_duration_seconds",
+          "_note": "Custom metric - requires instrumentation",
+          "aggregation": "ALIGN_PERCENTILE_95",
+          "groupBy": ["metric.labels.target_agent"],
+          "chartType": "LINE",
+          "position": {"row": 16, "col": 6, "width": 6, "height": 4}
+        }
+      ]
+    }
+  ],
+
+  "environments": {
+    "_note": "Apply filters per environment when creating actual dashboards",
+    "dev": {
+      "project_filter": "resource.labels.project_id=\"bobs-brain-dev\""
+    },
+    "stage": {
+      "project_filter": "resource.labels.project_id=\"bobs-brain-stage\""
+    },
+    "prod": {
+      "project_filter": "resource.labels.project_id=\"bobs-brain-prod\""
+    }
+  }
+}

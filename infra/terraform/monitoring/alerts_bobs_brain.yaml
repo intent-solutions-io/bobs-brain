@@ -1,0 +1,231 @@
+# Bob's Brain Alert Definitions
+# Version: 1.0.0
+# Description: Alert policies for monitoring Bob's Brain agent department
+# Usage: Translate to Terraform google_monitoring_alert_policy resources
+#        or import via Cloud Monitoring API
+
+# ==============================================================================
+# Alert Severity Levels
+# ==============================================================================
+# CRITICAL: Immediate attention required, pages on-call
+# HIGH:     Production issue, action needed within 1 hour
+# MEDIUM:   Degraded performance, action needed within 4 hours
+# LOW:      Informational, review during business hours
+
+---
+alerts:
+
+  # ============================================================================
+  # Agent Engine Alerts
+  # ============================================================================
+
+  - name: "bob-agent-high-error-rate-{env}"
+    display_name: "Bob Agent High Error Rate ({env})"
+    description: "Agent Engine error rate exceeds 5% for 10 minutes"
+    metric: "aiplatform.googleapis.com/reasoning_engine/prediction/error_count"
+    filter: "resource.labels.reasoning_engine_id=has_substring(\"bob\")"
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 0.05  # 5%
+      duration: "600s"  # 10 minutes
+      aggregation: "ALIGN_RATE"
+    severity_by_env:
+      dev: "LOW"
+      stage: "MEDIUM"
+      prod: "CRITICAL"
+    notification_channels:
+      - "oncall-devops"
+      - "email:devops@intent.solutions"
+    documentation:
+      content: |
+        ## Bob Agent High Error Rate
+
+        The Bob agent is experiencing elevated error rates.
+
+        ### Investigation Steps
+        1. Check Cloud Logging for error details
+        2. Review recent deployments
+        3. Check Vertex AI Agent Engine status
+
+        ### Remediation
+        - If caused by recent deploy: rollback
+        - If API quota: increase limits
+        - If model issues: check Gemini status
+
+  - name: "foreman-agent-high-error-rate-{env}"
+    display_name: "Foreman Agent High Error Rate ({env})"
+    description: "Foreman (iam-senior-adk-devops-lead) error rate exceeds 5%"
+    metric: "aiplatform.googleapis.com/reasoning_engine/prediction/error_count"
+    filter: "resource.labels.reasoning_engine_id=has_substring(\"foreman\")"
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 0.05
+      duration: "600s"
+      aggregation: "ALIGN_RATE"
+    severity_by_env:
+      dev: "LOW"
+      stage: "MEDIUM"
+      prod: "HIGH"
+    notification_channels:
+      - "oncall-devops"
+
+  - name: "agent-engine-elevated-latency-{env}"
+    display_name: "Agent Engine Elevated Latency ({env})"
+    description: "Agent Engine P95 latency exceeds 30 seconds"
+    metric: "aiplatform.googleapis.com/reasoning_engine/prediction/latency"
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 30000  # 30 seconds in ms
+      duration: "300s"  # 5 minutes
+      aggregation: "ALIGN_PERCENTILE_95"
+    severity_by_env:
+      dev: "LOW"
+      stage: "MEDIUM"
+      prod: "HIGH"
+    notification_channels:
+      - "oncall-devops"
+
+  - name: "agent-engine-zero-traffic-{env}"
+    display_name: "Agent Engine Zero Traffic ({env})"
+    description: "No predictions for 15 minutes - possible dead agent"
+    metric: "aiplatform.googleapis.com/reasoning_engine/prediction/count"
+    condition:
+      type: "absence"
+      duration: "900s"  # 15 minutes
+    severity_by_env:
+      dev: "LOW"  # Expected during off-hours
+      stage: "MEDIUM"
+      prod: "HIGH"
+    notification_channels:
+      - "oncall-devops"
+    documentation:
+      content: |
+        ## Zero Traffic Alert
+
+        The agent has received no traffic for 15+ minutes.
+
+        ### Possible Causes
+        - Agent Engine crashed
+        - Gateway routing broken
+        - Slack integration down
+        - Actually no user activity (check time of day)
+
+        ### Investigation
+        1. Check Agent Engine status in Console
+        2. Verify gateway health endpoints
+        3. Test Slack bot manually
+
+  # ============================================================================
+  # Gateway Alerts
+  # ============================================================================
+
+  - name: "slack-gateway-5xx-burst-{env}"
+    display_name: "Slack Gateway 5xx Burst ({env})"
+    description: "Slack gateway experiencing 5xx errors"
+    metric: "run.googleapis.com/request_count"
+    filter: >
+      resource.labels.service_name=has_substring("slack")
+      AND metric.labels.response_code_class="5xx"
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 5  # More than 5 errors
+      duration: "300s"  # In 5 minutes
+      aggregation: "ALIGN_SUM"
+    severity_by_env:
+      dev: "MEDIUM"
+      stage: "HIGH"
+      prod: "CRITICAL"
+    notification_channels:
+      - "oncall-devops"
+      - "slack-alerts"
+
+  - name: "gateway-high-latency-{env}"
+    display_name: "Gateway High Latency ({env})"
+    description: "Cloud Run gateway P95 latency exceeds 5 seconds"
+    metric: "run.googleapis.com/request_latencies"
+    filter: >
+      resource.labels.service_name=has_substring("gateway")
+      OR resource.labels.service_name=has_substring("slack")
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 5000  # 5 seconds in ms
+      duration: "300s"
+      aggregation: "ALIGN_PERCENTILE_95"
+    severity_by_env:
+      dev: "LOW"
+      stage: "MEDIUM"
+      prod: "HIGH"
+    notification_channels:
+      - "oncall-devops"
+
+  - name: "gateway-scaling-limit-{env}"
+    display_name: "Gateway Approaching Scaling Limit ({env})"
+    description: "Cloud Run instances at 80% of max"
+    metric: "run.googleapis.com/container/instance_count"
+    condition:
+      type: "threshold"
+      comparison: "COMPARISON_GT"
+      threshold_value: 0.8  # 80% of max instances
+      duration: "300s"
+      aggregation: "ALIGN_MEAN"
+    severity_by_env:
+      dev: "LOW"
+      stage: "MEDIUM"
+      prod: "HIGH"
+    notification_channels:
+      - "oncall-devops"
+    documentation:
+      content: |
+        ## Scaling Limit Warning
+
+        Gateway is approaching max instance count.
+
+        ### Action Required
+        - Review if traffic spike is expected
+        - Consider increasing max_instances in tfvars
+        - Check for potential DDoS or runaway client
+
+# ==============================================================================
+# Notification Channels (Reference)
+# ==============================================================================
+notification_channels:
+  oncall-devops:
+    type: "pagerduty"
+    _note: "Configure actual PagerDuty integration key"
+
+  email-devops:
+    type: "email"
+    addresses:
+      - "devops@intent.solutions"
+
+  slack-alerts:
+    type: "slack"
+    channel: "#bobs-brain-alerts"
+    _note: "Configure actual Slack webhook"
+
+# ==============================================================================
+# Environment-Specific Thresholds
+# ==============================================================================
+environment_overrides:
+  dev:
+    # Looser thresholds for development
+    error_rate_threshold: 0.10  # 10%
+    latency_threshold_ms: 60000  # 60 seconds
+    zero_traffic_duration: "3600s"  # 1 hour
+
+  stage:
+    # Moderate thresholds for staging
+    error_rate_threshold: 0.05  # 5%
+    latency_threshold_ms: 30000  # 30 seconds
+    zero_traffic_duration: "1800s"  # 30 minutes
+
+  prod:
+    # Strict thresholds for production
+    error_rate_threshold: 0.02  # 2%
+    latency_threshold_ms: 15000  # 15 seconds
+    zero_traffic_duration: "900s"  # 15 minutes

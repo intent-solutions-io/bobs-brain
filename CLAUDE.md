@@ -320,7 +320,39 @@ ls 000-docs/127-*
 
 ---
 
-## 6. Changelog / Maintenance
+## 6. Observability Checklist
+
+After deploying to any environment (dev/stage/prod), ensure monitoring is in place:
+
+### Dashboard Requirements
+- [ ] Agent Engine prediction count panel
+- [ ] Agent Engine error count panel
+- [ ] Agent Engine P95 latency panel
+- [ ] Gateway (Slack/A2A) request count panel
+- [ ] Gateway 5xx error panel
+
+### Alert Requirements
+- [ ] High error rate alert (>5% for 10min)
+- [ ] Zero traffic alert (dead agent detection)
+- [ ] Gateway 5xx burst alert
+- [ ] High latency alert (>30s P95)
+
+### Where to Customize
+
+| What | Location |
+|------|----------|
+| Dashboard definitions | `infra/terraform/monitoring/dashboards_bobs_brain.json` |
+| Alert definitions | `infra/terraform/monitoring/alerts_bobs_brain.yaml` |
+| Observability playbook | `000-docs/201-RB-OBSERVABILITY-bobs-brain-dashboard-and-alert-playbook.md` |
+
+### Environment Filters
+- dev: `resource.labels.project_id="bobs-brain-dev"`
+- stage: `resource.labels.project_id="bobs-brain-stage"`
+- prod: `resource.labels.project_id="bobs-brain-prod"`
+
+---
+
+## 7. Changelog / Maintenance
 
 **Last Update:** 2025-12-05
 
