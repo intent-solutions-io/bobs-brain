@@ -13,6 +13,9 @@ Phase 1: Sequential Workflow Foundation
 
 Phase 2: Parallel Execution
 - analysis_workflow.py: ParallelAgent(iam-adk, iam-cleanup, iam-index) -> aggregator
+
+Phase 3: Quality Gates (Generator-Critic + LoopAgent)
+- fix_loop.py: LoopAgent(iam-fix-impl -> iam-qa) with max_iterations=3
 """
 
 from agents.workflows.compliance_workflow import (
@@ -28,6 +31,12 @@ from agents.workflows.analysis_workflow import (
     create_analysis_workflow,
 )
 
+from agents.workflows.fix_loop import (
+    create_fix_review,
+    create_fix_loop,
+    create_qa_escalation_callback,
+)
+
 __all__ = [
     # Phase 1: Sequential Workflow
     "create_compliance_workflow",
@@ -38,4 +47,8 @@ __all__ = [
     "create_parallel_analysis",
     "create_result_aggregator",
     "create_analysis_workflow",
+    # Phase 3: Quality Gates (LoopAgent)
+    "create_fix_review",
+    "create_fix_loop",
+    "create_qa_escalation_callback",
 ]
