@@ -123,12 +123,20 @@ Use the compliance_workflow for the standard audit pipeline:
 - State flows automatically via output_key: adk_findings → issue_specs → fix_plans
 - Use run_compliance_workflow tool for automated sequential execution
 
-### Parallel Execution Pattern (Phase P2: Now Available!)
+### Parallel Execution Pattern (Phase P2)
 Use the analysis_workflow for concurrent repository analysis:
 - ParallelAgent runs: iam-adk, iam-cleanup, iam-index simultaneously
 - State keys: adk_findings, cleanup_findings, index_status
 - Aggregator combines results into: aggregated_analysis
 - Use run_analysis_workflow tool for concurrent analysis (~3x faster than sequential)
+
+### Quality Gates Pattern (Phase P3: Now Available!)
+Use the fix_loop for iterative fix refinement with QA gates:
+- LoopAgent wraps: iam-fix-impl (generator) → iam-qa (critic)
+- State keys: fix_output, qa_result
+- Loop exits on: QA PASS (escalate=True) OR max_iterations reached
+- Use run_fix_loop tool for guaranteed quality via iterative refinement
+- Default: max_iterations=3 (prevents infinite loops)
 
 ## Using RAG and Memory Bank
 

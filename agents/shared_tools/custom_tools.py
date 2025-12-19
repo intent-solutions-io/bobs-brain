@@ -373,6 +373,49 @@ def get_workflow_tools() -> List[Any]:
     except ImportError as e:
         logger.warning(f"Could not import analysis workflow tools: {e}")
 
+    # Phase P3: Fix loop workflow (Generator-Critic + LoopAgent)
+    try:
+        from agents.workflows.fix_loop import create_fix_loop
+
+        def run_fix_loop(
+            fix_plan: dict,
+            max_iterations: int = 3,
+        ) -> dict:
+            """
+            Run the fix implementation loop with QA gates.
+
+            This executes a LoopAgent workflow:
+            1. iam-fix-impl: Implements fix from plan -> fix_output
+            2. iam-qa: Reviews implementation -> qa_result (PASS/FAIL)
+            3. If FAIL, loop back to step 1 (up to max_iterations)
+            4. If PASS, exit loop early via escalate
+
+            Args:
+                fix_plan: The FixPlan specification from iam-fix-plan
+                max_iterations: Maximum retry attempts (default: 3)
+
+            Returns:
+                dict: Workflow result with fix_output and qa_result
+            """
+            return {
+                "status": "workflow_available",
+                "workflow": "fix_loop",
+                "pattern": "generator_critic_loop",
+                "loop_agents": ["iam-fix-impl", "iam-qa"],
+                "state_keys": ["fix_output", "qa_result"],
+                "max_iterations": max_iterations,
+                "exit_condition": "QA PASS (escalate=True) or max_iterations",
+                "message": "Use Runner to execute this LoopAgent workflow",
+                "input": {
+                    "fix_plan": fix_plan,
+                    "max_iterations": max_iterations,
+                },
+            }
+
+        tools.append(run_fix_loop)
+    except ImportError as e:
+        logger.warning(f"Could not import fix loop tools: {e}")
+
     return tools
 
 
