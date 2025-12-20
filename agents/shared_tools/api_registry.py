@@ -130,17 +130,18 @@ def _get_tools_via_toolset(registry: Any, agent_name: str) -> List[Any]:
     """
     try:
         # Map agent names to their allowed MCP servers
+        # bobs-mcp is the main MCP server in this repo (mcp/ directory)
         agent_mcp_mapping = {
-            "bob": ["mcp-repo-ops", "mcp-adk-docs"],
-            "iam-senior-adk-devops-lead": ["mcp-repo-ops", "mcp-github"],
-            "iam-adk": ["mcp-repo-ops", "mcp-adk-analyzer"],
-            "iam-issue": ["mcp-github"],
-            "iam-fix-plan": ["mcp-repo-ops"],
-            "iam-fix-impl": ["mcp-repo-ops", "mcp-github"],
-            "iam-qa": ["mcp-repo-ops"],
-            "iam-doc": ["mcp-repo-ops"],
-            "iam-cleanup": ["mcp-repo-ops"],
-            "iam-index": ["mcp-repo-ops"],
+            "bob": ["bobs-mcp"],
+            "iam-senior-adk-devops-lead": ["bobs-mcp"],
+            "iam-adk": ["bobs-mcp"],
+            "iam-issue": ["bobs-mcp"],
+            "iam-fix-plan": ["bobs-mcp"],
+            "iam-fix-impl": ["bobs-mcp"],
+            "iam-qa": ["bobs-mcp"],
+            "iam-doc": ["bobs-mcp"],
+            "iam-cleanup": ["bobs-mcp"],
+            "iam-index": ["bobs-mcp"],
         }
 
         mcp_servers = agent_mcp_mapping.get(agent_name, [])

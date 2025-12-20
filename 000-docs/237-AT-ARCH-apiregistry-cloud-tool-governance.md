@@ -11,7 +11,7 @@
 
 This document describes the integration of Google Cloud API Registry with Bob's Brain for **centralized tool governance**. The architecture separates MCP servers from agent code - agents discover tools at runtime via the registry, not at build time.
 
-**Key Principle:** MCP servers are independent infrastructure, NOT part of the agent build.
+**Key Principle:** MCP server lives in same repo but deploys to different target (Cloud Run).
 
 ---
 
@@ -19,39 +19,40 @@ This document describes the integration of Google Cloud API Registry with Bob's 
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                        COMPLETE SEPARATION                                  │
+│                    SAME REPO, DIFFERENT DEPLOY TARGETS                      │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  bobs-brain/                        │  SEPARATE REPOS (not in bobs-brain)  │
-│  ├── agents/                        │                                       │
-│  │   ├── bob/                       │  mcp-repo-ops/                        │
-│  │   ├── iam_senior.../             │  ├── Dockerfile                       │
-│  │   └── iam_*/                     │  ├── server.py                        │
-│  │       └── NO MCP SERVER CODE     │  └── deploys to Cloud Run             │
-│  │                                  │                                       │
-│  └── agents use:                    │  mcp-github/                          │
-│      ApiRegistry.get_toolset()      │  ├── Dockerfile                       │
-│      (runtime discovery)            │  ├── server.py                        │
-│                                     │  └── deploys to Cloud Run             │
-│                                     │                                       │
-│  Deploys to: Agent Engine           │  Deploys to: Cloud Run                │
-│  Build contains: Agent code only    │  Build contains: MCP server code only │
-│                                     │                                       │
-├─────────────────────────────────────┴───────────────────────────────────────┤
+│  bobs-brain/                                                                │
+│  ├── agents/        → Deploys to Agent Engine                              │
+│  │   ├── bob/                                                              │
+│  │   ├── iam_senior.../                                                    │
+│  │   └── iam_*/                                                            │
+│  │                                                                          │
+│  ├── service/       → Deploys to Cloud Run (Slack gateway)                 │
+│  │                                                                          │
+│  └── mcp/           → Deploys to Cloud Run (bobs-mcp server)               │
+│      ├── src/                                                               │
+│      │   ├── server.py                                                      │
+│      │   ├── auth/                                                          │
+│      │   └── tools/                                                         │
+│      └── Dockerfile                                                         │
+│                                                                             │
+│  Agents use: ApiRegistry.get_toolset() for runtime discovery               │
+│                                                                             │
+├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │                      CLOUD API REGISTRY (Console)                           │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │ Registered MCP Servers:                                              │   │
 │  │                                                                      │   │
-│  │  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐  │   │
-│  │  │ google-bigquery  │  │ mcp-repo-ops     │  │ mcp-github       │  │   │
-│  │  │ (Google managed) │  │ (your Cloud Run) │  │ (your Cloud Run) │  │   │
-│  │  └──────────────────┘  └──────────────────┘  └──────────────────┘  │   │
+│  │  ┌──────────────────┐  ┌──────────────────┐                         │   │
+│  │  │ google-bigquery  │  │ bobs-mcp         │                         │   │
+│  │  │ (Google managed) │  │ (your Cloud Run) │                         │   │
+│  │  └──────────────────┘  └──────────────────┘                         │   │
 │  │                                                                      │   │
 │  │  IAM Controls: Which agents can access which MCP servers            │   │
 │  │  Audit Logs: All tool discovery and invocation events               │   │
-│  │  Approval Workflow: Security team approves new tools                │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
