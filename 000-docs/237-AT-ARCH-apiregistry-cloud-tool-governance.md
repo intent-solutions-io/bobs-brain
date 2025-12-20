@@ -1,8 +1,9 @@
 # 237-AT-ARCH-apiregistry-cloud-tool-governance.md
 
 **Document Type:** Architecture Design
-**Status:** Proposed
+**Status:** Implemented (Phase 1 + Phase 2)
 **Created:** 2025-12-20
+**Updated:** 2025-12-20
 **Author:** Claude Code (Build Captain)
 
 ---
@@ -270,72 +271,74 @@ def get_iam_issue_tools() -> List[Any]:
 
 ---
 
-## MCP Server Infrastructure (Separate Repos)
+## MCP Server Infrastructure (Same Repo)
 
-MCP servers live in their own repositories, deployed independently:
+The MCP server lives in the same repo as agents, deployed to a different target:
 
-### Example: mcp-repo-ops
+### bobs-mcp Structure
 
 ```
-mcp-repo-ops/                    # SEPARATE REPO
-├── Dockerfile
-├── requirements.txt
-├── server.py                    # MCP server implementation
-├── tools/
-│   ├── search_codebase.py
-│   ├── get_file_contents.py
-│   ├── analyze_dependencies.py
-│   └── check_patterns.py
-├── terraform/
-│   └── cloud_run.tf            # Deploys to Cloud Run
-└── .github/workflows/
-    └── deploy.yml              # CI/CD for this server only
+bobs-brain/
+├── agents/           # → Deploys to Agent Engine
+├── service/          # → Deploys to Cloud Run (Slack gateway)
+└── mcp/              # → Deploys to Cloud Run (bobs-mcp)
+    ├── Dockerfile
+    ├── requirements.txt
+    ├── src/
+    │   ├── server.py           # FastAPI MCP server
+    │   ├── auth/
+    │   │   └── validator.py    # R7 caller validation
+    │   └── tools/
+    │       ├── search_codebase.py
+    │       ├── get_file.py
+    │       ├── analyze_deps.py
+    │       └── check_patterns.py
+    └── tests/
+        └── unit/
+            └── test_tools.py
 ```
 
-### MCP Server Registration (Terraform)
+### MCP Server Terraform (in bobs-brain)
 
 ```hcl
-# mcp-repo-ops/terraform/registry.tf
+# infra/terraform/cloud_run.tf
 
-resource "google_vertex_ai_mcp_server" "repo_ops" {
-  project  = var.project_id
-  location = "global"
-
-  display_name = "mcp-repo-ops"
-  description  = "Repository operations for Bob's Brain agents"
-
-  server_config {
-    cloud_run_service = google_cloud_run_service.mcp_repo_ops.name
-  }
-
-  # IAM bindings - which agents can use this server
-  # Managed separately by security team
-}
-
-resource "google_cloud_run_service" "mcp_repo_ops" {
-  name     = "mcp-repo-ops"
+resource "google_cloud_run_service" "bobs_mcp" {
+  count    = var.bobs_mcp_enabled ? 1 : 0
+  name     = "${var.app_name}-mcp-${var.environment}"
   location = var.region
+  project  = var.project_id
 
   template {
     spec {
+      service_account_name = google_service_account.bobs_mcp[0].email
       containers {
-        image = "gcr.io/${var.project_id}/mcp-repo-ops:latest"
+        image = var.bobs_mcp_image
       }
     }
   }
+}
+
+# IAM: Only Agent Engine can invoke MCP server
+resource "google_cloud_run_service_iam_member" "bobs_mcp_agents" {
+  count   = var.bobs_mcp_enabled ? 1 : 0
+  service = google_cloud_run_service.bobs_mcp[0].name
+  role    = "roles/run.invoker"
+  member  = "serviceAccount:${google_service_account.agent_engine.email}"
 }
 ```
 
 ---
 
-## Planned MCP Servers
+## MCP Servers
 
-| Server | Purpose | Tools | Priority |
-|--------|---------|-------|----------|
-| `mcp-repo-ops` | Repository operations | search_codebase, get_file, analyze_deps, check_patterns | High |
-| `mcp-github` | GitHub integration | create_issue, create_pr, list_workflows, get_reviews | High |
-| `mcp-adk-analyzer` | ADK compliance | check_hardmode, validate_agent, lint_prompts | Medium |
+| Server | Purpose | Tools | Status |
+|--------|---------|-------|--------|
+| `bobs-mcp` | Repository operations | search_codebase, get_file, analyze_deps, check_patterns | ✅ Implemented |
+| `bobs-mcp` (future) | GitHub integration | create_issue, create_pr, list_workflows | Planned |
 | Google BigQuery | Data operations | execute_sql, list_datasets, get_schema | Use Google's |
+
+**Note:** All tools will be added to the single `bobs-mcp` server rather than creating multiple MCP servers. This simplifies deployment and management.
 
 ---
 
@@ -356,30 +359,34 @@ resource "google_cloud_run_service" "mcp_repo_ops" {
 
 ## Implementation Phases
 
-### Phase 1: Agent-Side Foundation
-- [ ] Create `agents/shared_tools/api_registry.py`
-- [ ] Add `get_api_registry()` singleton
-- [ ] Add `get_tools_for_agent()` function
-- [ ] Update tool profiles to use registry
-- [ ] Unit tests (mock registry)
-- [ ] Fallback to empty tools if registry unavailable
+### Phase 1: Agent-Side Foundation ✅ COMPLETE
+- [x] Create `agents/shared_tools/api_registry.py`
+- [x] Add `get_api_registry()` singleton
+- [x] Add `get_tools_for_agent()` function
+- [x] Update tool profiles to use registry (hybrid: static + MCP)
+- [x] Unit tests (mock registry) - `tests/unit/test_api_registry.py`
+- [x] Fallback to empty tools if registry unavailable
 
-### Phase 2: First MCP Server (mcp-repo-ops)
-- [ ] Create `mcp-repo-ops` repository (separate from bobs-brain)
-- [ ] Implement MCP server with search_codebase tool
-- [ ] Deploy to Cloud Run via Terraform
-- [ ] Register in API Registry
-- [ ] Configure IAM for iam-adk access
-- [ ] Integration test
+### Phase 2: First MCP Server (bobs-mcp) ✅ COMPLETE
+- [x] Create MCP server in `bobs-brain/mcp/` (same repo, different deploy target)
+- [x] Implement MCP server with 4 tools:
+  - `search_codebase` - Grep-based code search
+  - `get_file` - File content retrieval with security
+  - `analyze_deps` - Dependency analysis
+  - `check_patterns` - Hard Mode rule validation
+- [x] Terraform for Cloud Run deployment (`infra/terraform/cloud_run.tf`)
+- [x] Service account + IAM (`infra/terraform/iam.tf`)
+- [x] GitHub Actions workflow (`.github/workflows/deploy-mcp.yml`)
+- [x] Unit tests for MCP tools (`mcp/tests/unit/`)
+- [ ] Register in API Registry (manual - console)
 
 ### Phase 3: GitHub MCP Server
-- [ ] Create `mcp-github` repository
+- [ ] Add GitHub tools to `mcp/src/tools/`
 - [ ] Implement create_issue, create_pr tools
-- [ ] Deploy and register
-- [ ] Configure IAM for iam-issue, iam-fix-impl
+- [ ] Update registry IAM for iam-issue, iam-fix-impl
 
 ### Phase 4: Migration Complete
-- [ ] Remove static tool definitions from agents/
+- [ ] Remove static tool definitions from agents/ (optional - hybrid works)
 - [ ] All tools come from registry
 - [ ] Add registry health check to ARV gates
 - [ ] Document governance procedures
@@ -432,8 +439,10 @@ def test_search_codebase_returns_results():
 
 | Date | Decision | Rationale |
 |------|----------|-----------|
-| 2025-12-20 | MCP servers in separate repos | Clean separation, independent lifecycles, different teams |
+| 2025-12-20 | ~~MCP servers in separate repos~~ | ~~Clean separation, independent lifecycles, different teams~~ |
+| 2025-12-20 | **REVISED: MCP server in same repo** | Simpler management, shared CI/CD, single source of truth |
 | 2025-12-20 | Registry-first tool discovery | Governance, traceability, audit compliance |
-| 2025-12-20 | No hardcoded tool lists | Registry + IAM is source of truth |
-| 2025-12-20 | Graceful degradation | Agents work (with no tools) if registry down |
-| 2025-12-20 | Start with mcp-repo-ops | High value, needed by multiple specialists |
+| 2025-12-20 | Hybrid tool loading | Static tools always available, MCP tools when registry configured |
+| 2025-12-20 | Graceful degradation | Agents work (with static tools) if registry down |
+| 2025-12-20 | Named "bobs-mcp" | Consistent with repo naming, clear ownership |
+| 2025-12-20 | Feature flag pattern | `bobs_mcp_enabled` allows gradual rollout |
