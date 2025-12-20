@@ -88,21 +88,23 @@
                 <div class="section-content">
                     <p>CI-enforced architectural constraints. These run on every push and block violations.</p>
 
-                    <table class="rules-table">
-                        <thead>
-                            <tr><th>Rule</th><th>What It Enforces</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td>R1</td><td>ADK-only. No LangChain, CrewAI, or custom frameworks in agent code.</td></tr>
-                            <tr><td>R2</td><td>Vertex AI Agent Engine runtime. No self-hosted runners.</td></tr>
-                            <tr><td>R3</td><td>Gateway separation. Cloud Run proxies only, no Runner in service/.</td></tr>
-                            <tr><td>R4</td><td>CI-only deployments. GitHub Actions with WIF, no manual gcloud.</td></tr>
-                            <tr><td>R5</td><td>Dual memory wiring. VertexAiSessionService + VertexAiMemoryBankService.</td></tr>
-                            <tr><td>R6</td><td>Single docs folder. All documentation in 000-docs/ with NNN-CC-ABCD naming.</td></tr>
-                            <tr><td>R7</td><td>SPIFFE ID propagation. In AgentCard, logs, and headers.</td></tr>
-                            <tr><td>R8</td><td>Drift detection. Runs first in CI, blocks forbidden imports.</td></tr>
-                        </tbody>
-                    </table>
+                    <div class="table-wrap">
+                        <table class="rules-table">
+                            <thead>
+                                <tr><th>Rule</th><th>What It Enforces</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>R1</td><td>ADK-only. No LangChain, CrewAI, or custom frameworks.</td></tr>
+                                <tr><td>R2</td><td>Vertex AI Agent Engine runtime. No self-hosted runners.</td></tr>
+                                <tr><td>R3</td><td>Gateway separation. Cloud Run proxies only.</td></tr>
+                                <tr><td>R4</td><td>CI-only deployments. GitHub Actions with WIF.</td></tr>
+                                <tr><td>R5</td><td>Dual memory. Session + Memory Bank wiring.</td></tr>
+                                <tr><td>R6</td><td>Single docs folder. 000-docs/ with NNN-CC-ABCD naming.</td></tr>
+                                <tr><td>R7</td><td>SPIFFE ID propagation in AgentCard, logs, headers.</td></tr>
+                                <tr><td>R8</td><td>Drift detection. Blocks forbidden imports in CI.</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -116,21 +118,23 @@
                         Reusable templates in <code>templates/</code>.
                     </p>
 
-                    <table class="patterns-table">
-                        <thead>
-                            <tr><th>Pattern</th><th>ADK Primitive</th><th>Status</th></tr>
-                        </thead>
-                        <tbody>
-                            <tr><td>Sequential Pipeline</td><td>SequentialAgent</td><td>Implemented</td></tr>
-                            <tr><td>Parallel Fan-Out</td><td>ParallelAgent</td><td>Implemented</td></tr>
-                            <tr><td>Quality Gates</td><td>LoopAgent</td><td>Implemented</td></tr>
-                            <tr><td>Human-in-the-Loop</td><td>Callbacks</td><td>Implemented</td></tr>
-                            <tr><td>Agent-to-Agent</td><td>A2A Protocol</td><td>Implemented</td></tr>
-                            <tr><td>Foreman-Worker</td><td>LlmAgent + delegation</td><td>Implemented</td></tr>
-                            <tr><td>Iterative Refinement</td><td>LoopAgent + escalate</td><td>Implemented</td></tr>
-                            <tr><td>Routing/Delegation</td><td>-</td><td>Planned</td></tr>
-                        </tbody>
-                    </table>
+                    <div class="table-wrap">
+                        <table class="patterns-table">
+                            <thead>
+                                <tr><th>Pattern</th><th>ADK Primitive</th><th>Status</th></tr>
+                            </thead>
+                            <tbody>
+                                <tr><td>Sequential Pipeline</td><td>SequentialAgent</td><td>Done</td></tr>
+                                <tr><td>Parallel Fan-Out</td><td>ParallelAgent</td><td>Done</td></tr>
+                                <tr><td>Quality Gates</td><td>LoopAgent</td><td>Done</td></tr>
+                                <tr><td>Human-in-the-Loop</td><td>Callbacks</td><td>Done</td></tr>
+                                <tr><td>Agent-to-Agent</td><td>A2A Protocol</td><td>Done</td></tr>
+                                <tr><td>Foreman-Worker</td><td>LlmAgent</td><td>Done</td></tr>
+                                <tr><td>Iterative Refinement</td><td>LoopAgent</td><td>Done</td></tr>
+                                <tr><td>Routing/Delegation</td><td>-</td><td>Planned</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </section>
 
@@ -146,11 +150,11 @@
 
                     <h3>Repository Stats</h3>
                     <ul class="spec-list">
-                        <li>169 documentation files in 000-docs/</li>
                         <li>9 agent implementations</li>
                         <li>8 reusable pattern templates</li>
+                        <li>17 test files (unit + integration)</li>
+                        <li>CI passes: lint, drift detection, ARV gates</li>
                         <li>Terraform modules for Agent Engine deployment</li>
-                        <li>GitHub Actions CI/CD with ARV gates</li>
                     </ul>
 
                     <h3>License</h3>
