@@ -1,4 +1,7 @@
-"""Unit tests for MCP tools."""
+"""Unit tests for MCP tools.
+
+Updated to work with Pydantic structured outputs (Phase A).
+"""
 
 import pytest
 from pathlib import Path
@@ -15,10 +18,13 @@ class TestSearchCodebase:
 
     @pytest.mark.asyncio
     async def test_empty_query_returns_error(self):
-        """Empty query should return error."""
+        """Empty query should return error result."""
         from src.tools import search_codebase
         result = await search_codebase.execute(query="")
-        assert "error" in result
+        # Now returns Pydantic model
+        assert result.success is False
+        assert result.error is not None
+        assert "required" in result.error.lower() or "query" in result.error.lower()
 
     @pytest.mark.asyncio
     async def test_search_finds_pattern(self):
@@ -32,7 +38,9 @@ class TestSearchCodebase:
             result = await search_codebase.execute(
                 query="hello_world", path=tmpdir, file_pattern="*.py"
             )
-            assert result["match_count"] >= 1
+            # Now returns Pydantic model
+            assert result.success is True
+            assert result.match_count >= 1
 
 
 class TestGetFile:
@@ -40,18 +48,22 @@ class TestGetFile:
 
     @pytest.mark.asyncio
     async def test_empty_path_returns_error(self):
-        """Empty path should return error."""
+        """Empty path should return error result."""
         from src.tools import get_file
         result = await get_file.execute(path="")
-        assert "error" in result
+        # Now returns Pydantic model
+        assert result.success is False
+        assert result.error is not None
 
     @pytest.mark.asyncio
     async def test_denies_sensitive_files(self):
         """Should deny access to sensitive files."""
         from src.tools import get_file
         result = await get_file.execute(path="/path/to/.env")
-        assert "error" in result
-        assert "denied" in result["error"].lower()
+        # Now returns Pydantic model
+        assert result.success is False
+        assert result.error is not None
+        assert "denied" in result.error.lower()
 
 
 class TestCheckPatterns:
@@ -67,7 +79,9 @@ class TestCheckPatterns:
             bad_file.write_text("from langchain import stuff\n")
 
             result = await check_patterns.execute(path=tmpdir, rules=["R1"])
-            assert result["status"] == "VIOLATIONS_FOUND"
+            # Now returns Pydantic model - status field (not compliance_status)
+            assert result.status == "VIOLATIONS_FOUND"
+            assert len(result.violations) > 0
 
     @pytest.mark.asyncio
     async def test_passes_clean_code(self):
@@ -79,4 +93,5 @@ class TestCheckPatterns:
             good_file.write_text("from google.adk import Agent\n")
 
             result = await check_patterns.execute(path=tmpdir, rules=["R1"])
-            assert result["status"] == "COMPLIANT"
+            # Now returns Pydantic model - status field (not compliance_status)
+            assert result.status == "COMPLIANT"

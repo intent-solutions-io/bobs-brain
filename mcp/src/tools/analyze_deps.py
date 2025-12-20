@@ -1,54 +1,92 @@
 """Analyze dependencies tool."""
 
 import logging
+import sys
 from pathlib import Path
 from typing import List
+
+# Add agents/ to Python path for imports
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
+
+from agents.shared_contracts.tool_outputs import (
+    DependencyResult,
+    PythonDependencies,
+    NodeDependencies,
+    TerraformDependencies,
+    DependencySummary,
+    create_success_result,
+    create_error_result,
+)
 
 logger = logging.getLogger(__name__)
 
 
-async def execute(path: str = ".") -> dict:
-    """Analyze project dependencies."""
+async def execute(path: str = ".") -> DependencyResult:
+    """
+    Analyze project dependencies.
+
+    Args:
+        path: Project directory to analyze (default: current directory)
+
+    Returns:
+        DependencyResult with Python, Node, Terraform dependencies and summary
+    """
     base_path = Path(path)
 
     if not base_path.exists():
-        return {"error": f"Path not found: {path}"}
+        return create_error_result(
+            DependencyResult, "analyze_deps", f"Path not found: {path}"
+        )
 
     logger.info(f"Analyzing dependencies in: {path}")
 
-    result = {
-        "path": str(base_path),
-        "python": {},
-        "node": {},
-        "terraform": {}
-    }
+    # Python dependencies
+    requirements_list = _parse_requirements(base_path / "requirements.txt")
+    pyproject_deps = _parse_pyproject(base_path / "pyproject.toml")
 
-    # Python
-    requirements = _parse_requirements(base_path / "requirements.txt")
-    if requirements:
-        result["python"]["requirements.txt"] = requirements
+    python = PythonDependencies(
+        requirements_txt=requirements_list,
+        pyproject_toml=pyproject_deps.get("dependencies", []),
+    )
 
-    pyproject = _parse_pyproject(base_path / "pyproject.toml")
-    if pyproject:
-        result["python"]["pyproject.toml"] = pyproject
+    # Node dependencies
+    package_json_data = _parse_package_json(base_path / "package.json")
+    node = NodeDependencies(
+        dependencies=package_json_data.get("dependencies", {}),
+        dev_dependencies=package_json_data.get("devDependencies", {}),
+    )
 
-    # Node
-    package_json = _parse_package_json(base_path / "package.json")
-    if package_json:
-        result["node"]["package.json"] = package_json
+    # Terraform providers
+    tf_providers_list = _parse_terraform(base_path)
+    terraform = TerraformDependencies(providers=tf_providers_list)
 
-    # Terraform
-    tf_providers = _parse_terraform(base_path)
-    if tf_providers:
-        result["terraform"]["providers"] = tf_providers
+    # Calculate summary
+    python_count = len(requirements_list) + len(pyproject_deps.get("dependencies", []))
+    node_count = len(package_json_data.get("dependencies", {})) + len(
+        package_json_data.get("devDependencies", {})
+    )
+    terraform_count = len(tf_providers_list)
 
-    result["summary"] = {
-        "python_packages": len(requirements) + len(pyproject.get("dependencies", [])),
-        "node_packages": len(package_json.get("dependencies", {})) + len(package_json.get("devDependencies", {})),
-        "terraform_providers": len(tf_providers)
-    }
+    summary = DependencySummary(
+        python_packages=python_count,
+        node_packages=node_count,
+        terraform_providers=terraform_count,
+    )
 
-    return result
+    # TODO: Add dependency issue detection (vulnerabilities, duplicates, etc.)
+    issues = []
+
+    return create_success_result(
+        DependencyResult,
+        "analyze_deps",
+        path=str(base_path),
+        python=python,
+        node=node,
+        terraform=terraform,
+        summary=summary,
+        issues=issues,
+    )
 
 
 def _parse_requirements(path: Path) -> List[str]:

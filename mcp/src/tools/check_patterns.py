@@ -1,8 +1,20 @@
 """Check patterns tool - validates code against ADK Hard Mode rules."""
 
 import logging
+import sys
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Literal
+
+# Add agents/ to Python path for imports
+REPO_ROOT = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO_ROOT))
+
+from agents.shared_contracts.tool_outputs import (
+    ComplianceResult,
+    Violation,
+    create_success_result,
+    create_error_result,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -40,49 +52,72 @@ RULE_CHECKS = {
 }
 
 
-async def execute(path: str = ".", rules: List[str] = None) -> dict:
-    """Check code against ADK patterns."""
+async def execute(path: str = ".", rules: List[str] = None) -> ComplianceResult:
+    """
+    Check code against ADK Hard Mode rules.
+
+    Args:
+        path: Directory to check (default: current directory)
+        rules: List of rule IDs to check (default: all rules)
+
+    Returns:
+        ComplianceResult with violations, warnings, and compliance score
+    """
     base_path = Path(path)
 
     if not base_path.exists():
-        return {"error": f"Path not found: {path}"}
+        return create_error_result(
+            ComplianceResult, "check_patterns", f"Path not found: {path}"
+        )
 
     rules = rules or list(RULE_CHECKS.keys())
 
     logger.info(f"Checking patterns in {path} for rules: {rules}")
 
-    results = {
-        "path": str(base_path),
-        "rules_checked": rules,
-        "violations": [],
-        "warnings": [],
-        "passed": [],
-        "compliance_score": 0.0
-    }
+    violations_list = []
+    warnings_list = []
+    passed_list = []
 
     for rule_id in rules:
         if rule_id not in RULE_CHECKS:
-            results["warnings"].append(f"Unknown rule: {rule_id}")
+            warnings_list.append(f"Unknown rule: {rule_id}")
             continue
 
         rule = RULE_CHECKS[rule_id]
-        violations = _check_rule(base_path, rule_id, rule)
+        rule_violations = _check_rule(base_path, rule_id, rule)
 
-        if violations:
-            results["violations"].extend(violations)
+        if rule_violations:
+            violations_list.extend(rule_violations)
         else:
-            results["passed"].append(rule_id)
+            passed_list.append(rule_id)
 
+    # Calculate compliance score
     total_rules = len([r for r in rules if r in RULE_CHECKS])
-    if total_rules > 0:
-        results["compliance_score"] = len(results["passed"]) / total_rules * 100
+    compliance_score = (len(passed_list) / total_rules * 100) if total_rules > 0 else 0.0
 
-    results["status"] = "COMPLIANT" if not results["violations"] else "VIOLATIONS_FOUND"
+    # Determine risk level based on violations
+    risk_level = _calculate_risk_level(violations_list)
 
-    return results
+    # Determine status
+    status: Literal["COMPLIANT", "VIOLATIONS_FOUND"] = (
+        "COMPLIANT" if not violations_list else "VIOLATIONS_FOUND"
+    )
+
+    return create_success_result(
+        ComplianceResult,
+        "check_patterns",
+        status=status,
+        violations=violations_list,
+        warnings=warnings_list,
+        passed=passed_list,
+        compliance_score=compliance_score,
+        risk_level=risk_level,
+        path=str(base_path),
+        rules_checked=rules,
+    )
 
 
-def _check_rule(base_path: Path, rule_id: str, rule: dict) -> List[dict]:
+def _check_rule(base_path: Path, rule_id: str, rule: dict) -> List[Violation]:
     """Check a single rule."""
     violations = []
 
@@ -90,15 +125,17 @@ def _check_rule(base_path: Path, rule_id: str, rule: dict) -> List[dict]:
         for forbidden in rule["forbidden"]:
             matches = _find_pattern(base_path, forbidden, "*.py")
             for match in matches:
-                violations.append({
-                    "rule": rule_id,
-                    "rule_name": rule["name"],
-                    "type": "forbidden_import",
-                    "pattern": forbidden,
-                    "file": match["file"],
-                    "line": match["line"],
-                    "text": match["text"]
-                })
+                violations.append(
+                    Violation(
+                        rule=rule_id,
+                        rule_name=rule["name"],
+                        type="forbidden_import",
+                        pattern=forbidden,
+                        file=match["file"],
+                        line=match["line"],
+                        text=match["text"],
+                    )
+                )
 
     if "forbidden_in_service" in rule:
         service_path = base_path / "service"
@@ -106,17 +143,42 @@ def _check_rule(base_path: Path, rule_id: str, rule: dict) -> List[dict]:
             for forbidden in rule["forbidden_in_service"]:
                 matches = _find_pattern(service_path, forbidden, "*.py")
                 for match in matches:
-                    violations.append({
-                        "rule": rule_id,
-                        "rule_name": rule["name"],
-                        "type": "forbidden_in_service",
-                        "pattern": forbidden,
-                        "file": match["file"],
-                        "line": match["line"],
-                        "text": match["text"]
-                    })
+                    violations.append(
+                        Violation(
+                            rule=rule_id,
+                            rule_name=rule["name"],
+                            type="forbidden_in_service",
+                            pattern=forbidden,
+                            file=match["file"],
+                            line=match["line"],
+                            text=match["text"],
+                        )
+                    )
 
     return violations
+
+
+def _calculate_risk_level(
+    violations: List[Violation],
+) -> Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"]:
+    """Calculate overall risk level from violations."""
+    if not violations:
+        return "LOW"
+
+    # Count critical violations (R1, R2 - framework violations)
+    critical_rules = {"R1", "R2"}
+    critical_count = sum(
+        1 for v in violations if v.rule in critical_rules
+    )
+
+    if critical_count > 0:
+        return "CRITICAL"
+    elif len(violations) >= 10:
+        return "HIGH"
+    elif len(violations) >= 3:
+        return "MEDIUM"
+    else:
+        return "LOW"
 
 
 def _find_pattern(base_path: Path, pattern: str, file_pattern: str) -> List[dict]:
